@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revisando Conceitos</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --contabilizei-blue: #007bff;
+            --bg-body: #f4f7f9;
+            --text-main: #1e293b;
+            --border-color: #e2e8f0;
+            --header-bg: #f8fafc;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-body); 
+            margin: 0; 
+            padding: 30px 15px; 
+            color: var(--text-main);
+        }
+
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05); 
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        header { 
+            text-align: center; 
+            padding: 30px 25px 20px 25px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .logo { max-width: 160px; margin-bottom: 15px; }
+
+        h2 { color: #0056b3; font-size: 1.5rem; margin: 0 0 10px 0; font-weight: 800; }
+
+        .subtitle { font-size: 0.95rem; color: #475569; margin: 0; line-height: 1.6; }
+
+        #agenda-list { display: flex; flex-direction: column; }
+
+        .day-header {
+            background-color: var(--header-bg); padding: 12px 20px; font-weight: 600;
+            font-size: 0.9rem; color: #475569; border-bottom: 1px solid var(--border-color);
+            border-top: 1px solid var(--border-color); text-transform: capitalize;
+        }
+        .day-header:first-child { border-top: none; }
+
+        .time-slot {
+            display: flex; align-items: center; padding: 18px 20px; text-decoration: none;
+            color: var(--text-main); border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s ease; cursor: pointer;
+        }
+        .time-slot:last-child { border-bottom: none; }
+        .time-slot:hover, .time-slot:active { background-color: #f0f8ff; }
+
+        .slot-dot { width: 20px; height: 20px; background-color: var(--contabilizei-blue); border-radius: 50%; margin-right: 15px; flex-shrink: 0; }
+        .slot-time { font-size: 1.1rem; font-weight: 500; letter-spacing: 0.5px; }
+        .no-slots { text-align: center; padding: 40px 20px; color: #64748b; font-style: italic; }
+
+        .footer-text {
+            text-align: center; padding: 20px 25px; font-size: 0.85rem; color: #64748b;
+            background-color: var(--header-bg); border-top: 1px solid var(--border-color); line-height: 1.5;
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 15px 10px; } .time-slot { padding: 15px; }
+            .slot-time { font-size: 1rem; } header { padding: 25px 15px 15px 15px; } .footer-text { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <img src="./logo.png" alt="Contabilizei" class="logo">
+        <h2>Revisando Conceitos</h2>
+        <p class="subtitle">Escolha um horário para sua integração coletiva. Neste encontro coletivo, vamos tirar todas suas dúvidas sobre as rotinas da sua contabilidade. Abaixo os horários disponíveis para os próximos dias!</p>
+    </header>
+
+    <div id="agenda-list">
+        <div class="no-slots">Carregando horários disponíveis...</div>
+    </div>
+
+    <div class="footer-text">
+        Após o agendamento você será comunicado por e-mail com o link de participação do Google Meet.
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        const container = document.getElementById('agenda-list');
+        try {
+            const response = await fetch('./horarios.json?t=' + new Date().getTime());
+            if (!response.ok) throw new Error("Falha ao carregar JSON");
+            const data = await response.json();
+
+            const now = new Date();
+            
+            // --- CÁLCULO DE 10 DIAS CORRIDOS (Sem filtros) ---
+            let maxDate = new Date(now);
+            maxDate.setDate(now.getDate() + 10);
+            maxDate.setHours(23, 59, 59, 999);
+            // --------------------------------------------------
+
+            let slotsList = [];
+            const seenTimes = new Set(); 
+
+            data.forEach(event => {
+                const startTime = new Date(event.start);
+                
+                // Pega qualquer horário que estiver entre hoje e os próximos 10 dias
+                if (startTime >= now && startTime <= maxDate) {
+                    const timeKey = startTime.getTime();
+                    
+                    // Impede que mostre o mesmo horário duas vezes (se 2 assessores estiverem livres na mesma hora)
+                    if (!seenTimes.has(timeKey)) {
+                        seenTimes.add(timeKey);
+                        slotsList.push({ start: startTime, url: event.url });
+                    }
+                }
+            });
+
+            // Ordena do horário mais próximo para o mais distante
+            slotsList.sort((a, b) => a.start - b.start);
+            
+            const groupedByDay = {};
+            slotsList.forEach(slot => {
+                let dayString = slot.start.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                if (!groupedByDay[dayString]) groupedByDay[dayString] = [];
+                groupedByDay[dayString].push(slot);
+            });
+
+            container.innerHTML = '';
+            
+            if (Object.keys(groupedByDay).length === 0) {
+                container.innerHTML = '<div class="no-slots">Nenhum horário disponível nos próximos 10 dias.</div>';
+                return;
+            }
+
+            for (const [day, daySlots] of Object.entries(groupedByDay)) {
+                const header = document.createElement('div');
+                header.className = 'day-header';
+                header.innerText = day;
+                container.appendChild(header);
+
+                daySlots.forEach(slot => {
+                    const slotEl = document.createElement('a');
+                    slotEl.className = 'time-slot';
+                    slotEl.href = slot.url;
+                    slotEl.target = '_blank';
+
+                    // Soma a duração padrão de 1 hora
+                    const endTime = new Date(slot.start.getTime() + (60 * 60 * 1000));
+                    const formatTime = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+                    slotEl.innerHTML = `<div class="slot-dot"></div><div class="slot-time">${formatTime(slot.start)} – ${formatTime(endTime)}</div>`;
+                    container.appendChild(slotEl);
+                });
+            }
+        } catch (error) {
+            console.error("Erro na agenda:", error);
+            container.innerHTML = '<div class="no-slots">Não foi possível carregar a agenda no momento.</div>';
+        }
+    });
+</script>
+</body>
+</html>
