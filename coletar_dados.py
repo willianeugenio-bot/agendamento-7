@@ -46,8 +46,8 @@ def obter_horarios():
             
             try:
                 res = requests.get("https://api.calendly.com/event_type_available_times", headers=headers, params=params)
-                print("res:"res)
-                print("status:"res.status_code)
+                print(res)
+                print("status:",res.status_code)
                 if res.status_code == 200:
                     slots = res.json().get('collection', [])
                     for slot in slots:
